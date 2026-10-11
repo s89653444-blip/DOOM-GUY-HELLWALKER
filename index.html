@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DOOM GUY: HELLWALKER</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080a0d;color:#eee;font-family:Arial,sans-serif;overflow:hidden}
+#game{display:block;width:100vw;height:100vh;background:#111}
+#hud{position:fixed;left:14px;top:12px;background:#090d12d9;border:1px solid #a33;padding:10px 14px;line-height:1.5;min-width:190px;text-shadow:1px 1px #000}
+#help{position:fixed;bottom:12px;left:14px;background:#090d12d9;border:1px solid #555;padding:9px 12px;max-width:min(720px,95vw);font-size:13px;line-height:1.5}
+#cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font-size:24px;color:#ffdfb0;pointer-events:none;text-shadow:0 0 6px #f30}
+#menu{position:fixed;right:14px;top:12px;background:#090d12e8;border:1px solid #a33;padding:12px;width:220px}
+label{display:block;font-size:13px;margin-bottom:5px}input[type=range]{width:100%}button{background:#7e1717;color:white;border:1px solid #ff6868;padding:7px 10px;margin:3px;cursor:pointer}button:hover{background:#a52626}
+#console{display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,94vw);background:#080b0ff2;border:2px solid #c33;padding:16px;box-shadow:0 0 40px #000}
+#console h2{margin:0 0 8px;color:#ff5555}#console p{font-size:13px;color:#ccc}#console input{width:100%;padding:10px;background:#15191e;color:#fff;border:1px solid #888}
+#toast{position:fixed;top:18%;left:50%;transform:translateX(-50%);background:#111d;padding:8px 15px;color:#ffc18d;display:none}
+#mobile{display:none;position:fixed;inset:0;pointer-events:none}
+.pad{position:absolute;bottom:22px;left:18px;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;pointer-events:auto}
+.mbtn{border:1px solid #ffffff66;background:#171b20bb;color:white;border-radius:12px;font-size:18px;touch-action:none;user-select:none}
+#lookzone{position:absolute;right:0;top:25%;width:48%;height:48%;pointer-events:auto;touch-action:none}
+#mobileActions{position:absolute;right:18px;bottom:22px;display:flex;flex-wrap:wrap;gap:7px;width:180px;justify-content:flex-end;pointer-events:auto}
+#mobileActions .mbtn{padding:10px 12px;min-width:62px}
+#settingsCover{display:none;position:fixed;inset:0;background:#000b;z-index:10;align-items:center;justify-content:center}
+#settingsCard{width:min(360px,92vw);background:#101419;border:2px solid #b33;padding:20px;box-shadow:0 0 35px #000;text-align:center}
+#settingsCard h2{color:#ff6666;margin-top:0}
+@media (pointer:coarse),(max-width:700px){#mobile{display:block}#help{max-width:48vw;bottom:8px;font-size:10px}#menu{top:10px;right:10px;width:170px}#hud{top:10px;left:10px;font-size:11px;min-width:140px}#mobileActions .mbtn{font-size:12px}}
+@media(max-width:700px){#menu{top:auto;bottom:100px;width:180px}#help{font-size:11px;max-width:55vw}#hud{font-size:12px;min-width:150px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas><div id="cross">+</div>
+<div id="hud"><b>DOOM GUY: HELLWALKER</b><br>Здоровье: <span id="hp">100</span><br>Броня: <span id="armor">50</span><br>Патроны: <span id="ammo">60</span><br>Убийства: <span id="kills">0</span><br><span id="status">Исследуй адские пустоши</span></div>
+<div id="menu"><button id="consoleBtn">⌨ Консоль</button><button id="settingsBtn">⚙ Настройки</button><div id="settingsInner"><label>Поле зрения (FOV): <b id="fovval">100°</b></label><input id="fov" type="range" min="60" max="160" value="100"><small>Максимум — 160°</small><hr><button id="fullscreen">На весь экран</button><button id="reset">Перезапуск</button></div></div>
+<div id="help"><b>Управление:</b> WASD — ходьба · мышь — смотреть · ЛКМ — стрелять · Shift — бег · Space — прыжок · E — подобрать аптечку/патроны · Esc — освободить мышь<br><b>Консоль:</b> нажми F2 на клавиатуре или кнопку «Консоль» вверху. В консоли отображаются название и версия игры.</div>
+<div id="mobile">
+ <div class="pad">
+  <button class="mbtn" style="grid-column:2;grid-row:1" data-hold="w">▲</button>
+  <button class="mbtn" style="grid-column:1;grid-row:2" data-hold="a">◀</button>
+  <button class="mbtn" style="grid-column:2;grid-row:2" data-hold="s">▼</button>
+  <button class="mbtn" style="grid-column:3;grid-row:2" data-hold="d">▶</button>
+ </div>
+ <div id="lookzone" aria-label="Зона поворота камеры"></div>
+ <div id="mobileActions">
+  <button class="mbtn" id="fireBtn">🔥 Огонь</button>
+  <button class="mbtn" data-tap="space">⬆ Прыжок</button>
+  <button class="mbtn" data-tap="e">Подобрать</button>
+  <button class="mbtn" data-hold="shift">Бег</button>
+ </div>
+</div>
+<div id="settingsCover"><div id="settingsCard"><h2>Игра на паузе</h2><p>Игра заморожена, пока открыты настройки.</p><label>Поле зрения: <b id="pauseFov">100°</b></label><input id="pauseFovRange" type="range" min="60" max="160" value="100"><br><button id="resumeBtn">Продолжить игру</button>
+<button id="newGameBtn" type="button">Новая игра</button></div></div>
+<div id="cross"></div><div id="toast"></div>
+<div id="console"><h2>HELL CONSOLE</h2><p><b>DOOM GUY: HELLWALKER</b><br>Версия игры: 0.3 Mobile Graphics Update</p><p>Введи команду и нажми Enter. Команды: <b>Rt_Abrasive_fov_100</b> (FOV 1–50000), <b>XN_Weapons_hands_outstretch_100</b> (растяжение оружия/рук: 10–1000; 100 = обычно), <b>PV_Noclip_fd-ui</b> (вкл/выкл прохождение сквозь препятствия), <b>god</b>, <b>give all</b>, <b>heal</b>, <b>ammo</b>, <b>kill</b>, <b>help</b>, <b>close</b>.</p><input id="cmd" autocomplete="off" placeholder="Введите команду..."><div id="log" style="margin-top:8px;color:#b9ffb9;font-size:13px">Консоль готова.</div><button id="close">Закрыть</button></div>
+<script>
+(()=> {
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight;function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}addEventListener('resize',resize);resize();
+const fovInput=document.getElementById('fov');let fov=100*Math.PI/180, weaponHandsOutstretch=100, currentWeapon='';
+fovInput.oninput=()=>{fov=+fovInput.value*Math.PI/180;document.getElementById('fovval').textContent=fovInput.value+'°';document.getElementById('pauseFovRange').value=fovInput.value;document.getElementById('pauseFov').textContent=fovInput.value+'°'};
+const pauseRange=document.getElementById('pauseFovRange');
+pauseRange.oninput=()=>{fovInput.value=pauseRange.value;fov=+pauseRange.value*Math.PI/180;document.getElementById('fovval').textContent=pauseRange.value+'°';document.getElementById('pauseFov').textContent=pauseRange.value+'°'};
+function openSettings(){paused=true;document.getElementById('settingsCover').style.display='flex';document.exitPointerLock?.();keys={};}
+function closeSettings(){paused=false;document.getElementById('settingsCover').style.display='none';}
+document.getElementById('settingsBtn').onclick=openSettings;
+document.getElementById('consoleBtn').onclick=()=>{if(consoleOpen)closeConsole();else if(!paused)openConsole()};
+document.getElementById('resumeBtn').onclick=closeSettings;
+
+let player={x:0,y:0,z:0,angle:0,hp:200,armor:300,ammo:60,alive:true,vy:0,ground:true,inv:false,noclip:false};
+let keys={},mouseDown=false,locked=false,consoleOpen=false,paused=false,kills=0,sequence=[],lastShot=0;
+const code=['ArrowUp','ArrowLeft','ArrowDown','ArrowRight','ArrowUp','ArrowDown','ArrowRight','ArrowLeft'];
+const mapSize=38,world=[],enemies=[],items=[];
+function rand(a,b){return a+Math.random()*(b-a)}
+// Build an open, explorable arena with ruins and scattered obstacles.
+for(let i=0;i<90;i++){let x=rand(-mapSize,mapSize),y=rand(-mapSize,mapSize);if(Math.hypot(x,y)<7)continue;let s=rand(.5,2.3);world.push({x,y,w:s,h:s,kind:Math.random()>.55?'pillar':'ruin',color:Math.random()>.5?'#37393c':'#4a2825'});}
+for(let i=0;i<20;i++)enemies.push({x:rand(-30,30),y:rand(-30,30),hp:100,speed:rand(.7,1.25),alive:true,attack:0,kind:i%4===0?'knight':'imp'});
+for(let i=0;i<24;i++)items.push({x:rand(-34,34),y:rand(-34,34),kind:i%3===0?'health':i%3===1?'ammo':'armor',alive:true});
+const specialWeapons={
+ BFG:{name:'BFG',body:'#183b2d',accent:'#62ff9a',width:1.2,height:1.12},
+ 'Shield Saw':{name:'Shield Saw',body:'#343638',accent:'#ff633b',width:1.18,height:1.08}
+};
+function tryDropSpecialWeapon(e){if(Math.random()<0.30){const kind=Math.random()<0.5?'weapon_bfg':'weapon_shieldsaw';items.push({x:e.x,y:e.y,kind,alive:true});toast(kind==='weapon_bfg'?'Выпал BFG! Подойди и нажми E':'Выпал Щит-пила! Подойди и нажми E');}}
+function jumpPlayer(){if(player.ground && !paused && !consoleOpen){player.vy=7.2;player.ground=false;}}
+function toast(t){let el=document.getElementById('toast');el.textContent=t;el.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.display='none',1800)}
+function norm(a){while(a>Math.PI)a-=Math.PI*2;while(a<-Math.PI)a+=Math.PI*2;return a}
+function project(x,y){let dx=x-player.x,dy=y-player.y,dist=Math.hypot(dx,dy),ang=norm(Math.atan2(dy,dx)-player.angle);if(Math.abs(ang)>fov/2+.3||dist<.1)return null;let sx=(.5+ang/fov)*W,scale=H/(dist*1.05),sy=H*.52-player.z*scale;return {sx,sy,scale,dist,ang}}
+function draw(){
+ctx.clearRect(0,0,W,H);
+let horizon=H*.5-player.z*H*.08;
+let sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#111820');sky.addColorStop(.55,'#51231e');sky.addColorStop(1,'#100e10');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#292323';ctx.fillRect(0,horizon,W,H-horizon);
+// Atmospheric haze and distant ember particles.
+let haze=ctx.createLinearGradient(0,horizon,0,H);haze.addColorStop(0,'#7d302322');haze.addColorStop(1,'#08090d99');ctx.fillStyle=haze;ctx.fillRect(0,horizon,W,H-horizon);
+for(let i=0;i<34;i++){let ex=((i*197+Date.now()*.018)%(W+40))-20,ey=horizon+((i*83+Date.now()*.035)%(Math.max(1,H-horizon)));ctx.fillStyle=i%3===0?'#ff7b3b88':'#b94b2b55';ctx.fillRect(ex,ey,2,3);}
+ctx.fillStyle='#5b3026';ctx.fillRect(0,horizon,W,3);
+for(let i=0;i<80;i++){let x=(i*173)%W,y=horizon+((i*47)%Math.max(1,H-horizon));ctx.fillStyle=i%3?'#3c2825':'#6e382a';ctx.fillRect(x,y,2+(i%4),1+(i%3));}
+// far ruins and objects; painter's order
+let objects=[];
+world.forEach(o=>objects.push({...o,type:'world'}));
+enemies.filter(e=>e.alive).forEach(e=>objects.push({...e,type:'enemy'}));
+items.filter(i=>i.alive).forEach(i=>objects.push({...i,type:'item'}));
+objects.sort((a,b)=>Math.hypot(b.x-player.x,b.y-player.y)-Math.hypot(a.x-player.x,a.y-player.y));
+for(let o of objects){let p=project(o.x,o.y);if(!p)continue;let sc=p.scale, x=p.sx, y=p.sy;
+// Soft fake contact shadows anchor objects to the ground.
+let shadowW=Math.min(120,Math.max(4,sc*(o.type==='enemy'?0.48:(o.w||1)*0.7)));
+ctx.fillStyle='rgba(0,0,0,0.42)';ctx.beginPath();ctx.ellipse(x,y+2,shadowW,Math.max(2,shadowW*.22),0,0,Math.PI*2);ctx.fill();
+if(o.type==='world'){
+let ww=(o.w||1)*sc*.75,hh=(o.h||1)*sc*.95;ctx.fillStyle='#0008';ctx.fillRect(x-ww*.6,y-hh*.05,ww*1.2,hh*.18);
+ctx.fillStyle=o.color;ctx.fillRect(x-ww/2,y-hh,ww,hh);ctx.fillStyle='#65605a';ctx.fillRect(x-ww/2,y-hh,ww,Math.max(2,hh*.12));ctx.fillStyle='#201c1c';ctx.fillRect(x-ww*.28,y-hh*.7,ww*.14,hh*.4);
+}else if(o.type==='enemy'){
+let size=Math.min(H*.65,sc*(o.kind==='knight'?1.1:.85)),w=size*.58,h=size;
+const armored=o.kind==='knight';
+ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(x,y+2,w*.72,w*.16,0,0,Math.PI*2);ctx.fill();
+// legs and feet are anchored to the projected ground point (y)
+ctx.fillStyle=armored?'#34383a':'#343d25';
+ctx.fillRect(x-w*.34,y-h*.28,w*.25,h*.25);ctx.fillRect(x+w*.09,y-h*.28,w*.25,h*.25);
+ctx.fillStyle=armored?'#8c8d83':'#668b3c';
+ctx.fillRect(x-w*.48,y-h*.72,w*.96,h*.48);
+ctx.fillStyle=armored?'#c0b8a2':'#8da94c';
+ctx.fillRect(x-w*.34,y-h*.98,w*.68,h*.34);
+// shoulder armor and horns
+ctx.fillStyle=armored?'#555a59':'#4c5b31';
+ctx.fillRect(x-w*.62,y-h*.72,w*.24,h*.2);ctx.fillRect(x+w*.38,y-h*.72,w*.24,h*.2);
+ctx.fillStyle=armored?'#d0c6b0':'#9dbb59';
+ctx.beginPath();ctx.moveTo(x-w*.25,y-h*.88);ctx.lineTo(x-w*.43,y-h*1.08);ctx.lineTo(x-w*.12,y-h*.96);ctx.fill();
+ctx.beginPath();ctx.moveTo(x+w*.25,y-h*.88);ctx.lineTo(x+w*.43,y-h*1.08);ctx.lineTo(x+w*.12,y-h*.96);ctx.fill();
+ctx.fillStyle='#ff3428';ctx.fillRect(x-w*.23,y-h*.84,w*.13,h*.055);ctx.fillRect(x+w*.1,y-h*.84,w*.13,h*.055);
+ctx.fillStyle='#1b1715';ctx.fillRect(x-w*.18,y-h*.7,w*.36,h*.1);
+ctx.fillStyle=armored?'#a6a69c':'#5e6d35';ctx.fillRect(x-w*.5,y-h*.1,w*.32,h*.1);ctx.fillRect(x+w*.18,y-h*.1,w*.32,h*.1);
+if(p.dist<18){ctx.fillStyle='#111';ctx.fillRect(x-w/2,y-h-12,w,4);ctx.fillStyle='#e44';ctx.fillRect(x-w/2,y-h-12,w*Math.max(0,o.hp/100),4)}
+}else{
+let s=Math.min(45,sc*.22);const special=o.kind==='weapon_bfg'||o.kind==='weapon_shieldsaw';
+ctx.fillStyle=o.kind==='health'?'#5fdb75':o.kind==='ammo'?'#e8c54e':o.kind==='armor'?'#65c9ee':o.kind==='weapon_bfg'?'#39ef87':'#ff623e';
+ctx.fillRect(x-s/2,y-s,s,s);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(9,s*.7)}px Arial`;ctx.textAlign='center';
+ctx.fillText(o.kind==='health'?'＋':o.kind==='ammo'?'A':o.kind==='armor'?'◆':o.kind==='weapon_bfg'?'BFG':'🛡',x,y-s*.2);
+if(special){ctx.strokeStyle=o.kind==='weapon_bfg'?'#a0ffc1':'#ffb19a';ctx.lineWidth=Math.max(1,sc*.025);ctx.strokeRect(x-s*.62,y-s*1.12,s*1.24,s*1.24);}
+}}
+drawWeapon();updateHud();
+requestAnimationFrame(draw)}
+
+const weaponChoices = [
+ {name:'Pistol', body:'#35393b', accent:'#8c9a9e', width:0.68, height:0.82},
+ {name:'Shotgun', body:'#25282a', accent:'#a23b31', width:1.00, height:1.00},
+ {name:'Heavy Rifle', body:'#202629', accent:'#b5a66a', width:0.88, height:0.92},
+ {name:'Energy Cannon', body:'#1d292e', accent:'#39bde0', width:1.15, height:1.04},
+ {name:'Demon Blaster', body:'#38232a', accent:'#d14b3f', width:1.08, height:1.10},
+ {name:'Super Shotgun', body:'#302a27', accent:'#b14a34', width:1.12, height:1.02}
+];
+currentWeapon = weaponChoices[Math.floor(Math.random()*weaponChoices.length)];
+
+
+function drawDemonModel(x,y,size,type='imp'){
+ // Detailed stylized demon sprite: horns, shoulders, armor plates, glowing eyes, mouth and claws.
+ const s=Math.max(10,size), h=s*1.35, w=s*.92;
+ ctx.save();ctx.translate(x,y);
+ const palette=type==='baron'?['#442c2b','#7b3330','#ff5a42']:type==='pinky'?['#3b3431','#8b7770','#ffb35b']:['#342c2b','#784037','#ff4d35'];
+ ctx.fillStyle=palette[0];ctx.beginPath();ctx.ellipse(0,-h*.35,w*.43,h*.33,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle=palette[1];ctx.beginPath();ctx.moveTo(-w*.44,-h*.42);ctx.lineTo(-w*.72,-h*.64);ctx.lineTo(-w*.63,-h*.25);ctx.lineTo(-w*.42,-h*.12);ctx.fill();
+ ctx.beginPath();ctx.moveTo(w*.44,-h*.42);ctx.lineTo(w*.72,-h*.64);ctx.lineTo(w*.63,-h*.25);ctx.lineTo(w*.42,-h*.12);ctx.fill();
+ ctx.fillStyle=palette[0];ctx.fillRect(-w*.52,-h*.1,w*1.04,h*.47);
+ ctx.fillStyle='#1a1718';ctx.fillRect(-w*.42,h*.1,w*.28,h*.33);ctx.fillRect(w*.14,h*.1,w*.28,h*.33);
+ ctx.fillStyle=palette[1];ctx.fillRect(-w*.67,-h*.02,w*.25,h*.3);ctx.fillRect(w*.42,-h*.02,w*.25,h*.3);
+ ctx.fillStyle=palette[2];ctx.fillRect(-w*.28,-h*.47,w*.16,h*.06);ctx.fillRect(w*.12,-h*.47,w*.16,h*.06);
+ ctx.fillStyle='#f4d9c8';ctx.fillRect(-w*.22,-h*.24,w*.44,h*.05);
+ ctx.fillStyle='#171314';ctx.fillRect(-w*.18,-h*.18,w*.36,h*.1);
+ ctx.fillStyle='#9b9b9b';ctx.fillRect(-w*.48,h*.32,w*.2,h*.12);ctx.fillRect(w*.28,h*.32,w*.2,h*.12);
+ ctx.restore();
+}
+
+
+function drawDetailedEnemyPass(){
+ if(!Array.isArray(enemies)) return;
+ for(const e of enemies){
+   if(!e||e.dead) continue;
+   let dx=(e.x||0)-(player?.x||0),dy=(e.y||0)-(player?.y||0);
+   let dist=Math.max(1,Math.hypot(dx,dy));
+   let rel=Math.atan2(dy,dx)-(player?.angle||0);
+   while(rel>Math.PI)rel-=Math.PI*2;while(rel<-Math.PI)rel+=Math.PI*2;
+   if(Math.abs(rel)>fov/2+.25)continue;
+   let sx=(.5+rel/fov)*W, size=Math.min(H*.45,H/(dist*.9));
+   let sy=H*.57+Math.sin(Date.now()/200+dist)*Math.min(3,size*.02);
+   drawDemonModel(sx,sy,size,e.type||e.kind||'imp');
+ }
+}
+
+function drawWeapon(){
+ let bob=Math.sin(Date.now()/130)*(keys['w']||keys['s']?8:2)-player.z*18,cx=W*.5,base=H+30+bob;
+ let st=Math.max(0.1,Math.min(10,weaponHandsOutstretch/100));
+ const w=currentWeapon||{name:'Shotgun',body:'#25282a',accent:'#a23b31',width:1,height:1};
+ ctx.save();ctx.translate(cx,0);ctx.scale(st*w.width,1);ctx.translate(-cx,0);
+ // Stylized first-person weapon model with layered metal, grip, barrel and weapon-specific accents.
+ const top=H*.62, bodyW=96, bodyH=105;
+ ctx.fillStyle='#111416';ctx.beginPath();ctx.moveTo(cx-88,base);ctx.lineTo(cx-62,H*.74+bob);ctx.lineTo(cx-35,top+bob);ctx.lineTo(cx+35,top+bob);ctx.lineTo(cx+62,H*.74+bob);ctx.lineTo(cx+88,base);ctx.closePath();ctx.fill();
+ ctx.fillStyle=w.body;ctx.beginPath();ctx.moveTo(cx-40,top+15+bob);ctx.lineTo(cx-30,top-22+bob);ctx.lineTo(cx+30,top-22+bob);ctx.lineTo(cx+40,top+15+bob);ctx.lineTo(cx+50,H*.84+bob);ctx.lineTo(cx-50,H*.84+bob);ctx.closePath();ctx.fill();
+ ctx.fillStyle='#60696d';ctx.fillRect(cx-28,top-18+bob,56,18);
+ ctx.fillStyle=w.accent;ctx.fillRect(cx-7,top-15+bob,14,47);
+ ctx.fillStyle='#202426';ctx.fillRect(cx-20,H*.73+bob,40,62);
+ ctx.fillStyle='#707a7d';ctx.fillRect(cx-33,H*.79+bob,66,10);
+ // Super Shotgun: chunky twin barrels, red iron housing, brass edges and central mechanical block.
+ if(w.name==='BFG'){
+   // Large green energy cannon
+   ctx.fillStyle='#10261d';ctx.fillRect(cx-47,top-35+bob,94,90);
+   ctx.fillStyle='#285840';ctx.fillRect(cx-38,top-52+bob,76,45);
+   ctx.fillStyle='#67ff9d';ctx.fillRect(cx-23,top-45+bob,46,29);
+   ctx.fillStyle='#d0ffe0';ctx.fillRect(cx-9,top-40+bob,18,18);
+   ctx.fillStyle='#1a3327';ctx.fillRect(cx-25,H*.76+bob,50,70);
+   ctx.fillStyle='#65ff9a';ctx.fillRect(cx-5,top+15+bob,10,26);
+   ctx.strokeStyle='#9affb9';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,top-29+bob,28,0,Math.PI*2);ctx.stroke();
+ } else if(w.name==='Shield Saw'){
+   // Forearm-mounted metal shield with a toothed saw rim
+   ctx.fillStyle='#252a2d';ctx.beginPath();ctx.moveTo(cx-53,top-12+bob);ctx.lineTo(cx-40,top-49+bob);ctx.lineTo(cx+35,top-49+bob);ctx.lineTo(cx+53,top-12+bob);ctx.lineTo(cx+43,top+44+bob);ctx.lineTo(cx-43,top+44+bob);ctx.closePath();ctx.fill();
+   ctx.strokeStyle='#b8bec0';ctx.lineWidth=7;ctx.beginPath();ctx.arc(cx,top-7+bob,42,Math.PI*1.05,Math.PI*1.95);ctx.stroke();
+   ctx.strokeStyle='#ff603b';ctx.lineWidth=4;ctx.beginPath();ctx.arc(cx,top-7+bob,35,Math.PI*1.05,Math.PI*1.95);ctx.stroke();
+   ctx.fillStyle='#15191b';ctx.fillRect(cx-18,top-19+bob,36,32);
+   ctx.fillStyle='#ff623e';ctx.fillRect(cx-5,top-13+bob,10,22);
+   for(let i=0;i<7;i++){const a=Math.PI*1.08+i*Math.PI*.12;ctx.fillStyle='#d5d8d8';ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*37,top-7+bob+Math.sin(a)*37);ctx.lineTo(cx+Math.cos(a)*48,top-7+bob+Math.sin(a)*48);ctx.lineTo(cx+Math.cos(a+.05)*34,top-7+bob+Math.sin(a+.05)*34);ctx.fill();}
+ } else if(w.name==='Super Shotgun'){
+   ctx.fillStyle='#171819';
+   ctx.fillRect(cx-38,top-58+bob,25,66);ctx.fillRect(cx+13,top-58+bob,25,66);
+   ctx.fillStyle='#a7a19a';
+   ctx.fillRect(cx-35,top-59+bob,5,55);ctx.fillRect(cx+16,top-59+bob,5,55);
+   ctx.fillStyle='#090a0b';
+   ctx.fillRect(cx-32,top-65+bob,13,13);ctx.fillRect(cx+19,top-65+bob,13,13);
+   ctx.fillStyle='#6e2d26';
+   ctx.beginPath();ctx.moveTo(cx-48,top-3+bob);ctx.lineTo(cx-40,top-34+bob);ctx.lineTo(cx+40,top-34+bob);ctx.lineTo(cx+48,top-3+bob);ctx.lineTo(cx+58,H*.82+bob);ctx.lineTo(cx-58,H*.82+bob);ctx.closePath();ctx.fill();
+   ctx.fillStyle='#b77b42';ctx.fillRect(cx-44,top+1+bob,88,7);
+   ctx.fillStyle='#252526';ctx.fillRect(cx-17,top-23+bob,34,37);
+   ctx.fillStyle='#d7b16a';ctx.fillRect(cx-5,top-20+bob,10,26);
+   // jagged forged side plates
+   ctx.fillStyle='#55251f';
+   ctx.beginPath();ctx.moveTo(cx-46,top+8+bob);ctx.lineTo(cx-63,top-5+bob);ctx.lineTo(cx-55,top+23+bob);ctx.lineTo(cx-43,top+31+bob);ctx.fill();
+   ctx.beginPath();ctx.moveTo(cx+46,top+8+bob);ctx.lineTo(cx+63,top-5+bob);ctx.lineTo(cx+55,top+23+bob);ctx.lineTo(cx+43,top+31+bob);ctx.fill();
+   ctx.fillStyle='#0e1011';ctx.fillRect(cx-22,H*.77+bob,44,62);
+   ctx.fillStyle='#6e7374';ctx.fillRect(cx-30,H*.79+bob,60,9);
+ } else {
+ // barrel / muzzle varies by weapon
+ ctx.fillStyle='#090b0c';
+ if(w.name==='Shotgun'){
+   ctx.fillRect(cx-25,top-43+bob,14,32);ctx.fillRect(cx+11,top-43+bob,14,32);
+   ctx.fillStyle='#8e9698';ctx.fillRect(cx-24,top-44+bob,4,26);ctx.fillRect(cx+12,top-44+bob,4,26);
+ } else {
+   ctx.fillRect(cx-13,top-48+bob,26,34);
+   ctx.fillStyle=w.accent;ctx.fillRect(cx-6,top-53+bob,12,8);
+ }
+ }
+ // side details
+ ctx.fillStyle='#353c3f';ctx.fillRect(cx-46,top+22+bob,15,47);ctx.fillRect(cx+31,top+22+bob,15,47);
+ ctx.fillStyle=w.accent;ctx.fillRect(cx-42,top+29+bob,7,24);ctx.fillRect(cx+35,top+29+bob,7,24);
+ if(w.name==='Energy Cannon'){
+   ctx.strokeStyle='#6be6ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,top-24+bob,18,0,Math.PI*2);ctx.stroke();
+ }
+ if(w.name==='Demon Blaster'){
+   ctx.fillStyle='#7d1f25';ctx.beginPath();ctx.moveTo(cx-28,top+8+bob);ctx.lineTo(cx-52,top-4+bob);ctx.lineTo(cx-33,top+30+bob);ctx.fill();
+   ctx.beginPath();ctx.moveTo(cx+28,top+8+bob);ctx.lineTo(cx+52,top-4+bob);ctx.lineTo(cx+33,top+30+bob);ctx.fill();
+ }
+ if(Date.now()-lastShot<100){
+   ctx.fillStyle='#ffd27a';ctx.beginPath();ctx.moveTo(cx,H*.65+bob);ctx.lineTo(cx-20,H*.55+bob);ctx.lineTo(cx,H*.48+bob);ctx.lineTo(cx+22,H*.56+bob);ctx.closePath();ctx.fill();
+ }
+ ctx.restore();
+ ctx.save();ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.fillStyle='#e7e7e7';ctx.shadowColor='#000';ctx.shadowBlur=4;ctx.fillText('WEAPON: '+(w.name||'Shotgun'),cx,H-18);ctx.restore();
+}
+function updateHud(){document.getElementById('hp').textContent=player.hp;document.getElementById('armor').textContent=player.armor;document.getElementById('ammo').textContent=player.ammo;document.getElementById('kills').textContent=kills;document.getElementById('status').textContent=player.inv?'НЕУЯЗВИМОСТЬ ВКЛ':(player.hp<=0?'Нажми R для возрождения':'Исследуй адские пустоши')}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function shoot(){if(consoleOpen||paused||player.hp<=0)return;if(player.ammo<=0){toast('Нет патронов!');return}player.ammo--;lastShot=Date.now();let target=null,best=999;
+for(let e of enemies){if(!e.alive)continue;let a=norm(Math.atan2(e.y-player.y,e.x-player.x)-player.angle),d=dist(e,player);if(Math.abs(a)<.11&&d<best){best=d;target=e}}
+if(target){target.hp-=50;if(target.hp<=0){target.alive=false;kills++;toast('Демон уничтожен!');tryDropSpecialWeapon(target)}}}
+canvas.addEventListener('click',()=>{if(!locked&&!consoleOpen&&!paused){canvas.requestPointerLock?.();return}shoot()});
+document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===canvas);
+document.addEventListener('mousemove',e=>{if(locked&&!consoleOpen&&!paused)player.angle+=e.movementX*.0024});
+document.addEventListener('mousedown',e=>{if(e.button===0&&locked)shoot()});
+document.addEventListener('keydown',e=>{
+if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){e.preventDefault();if(!paused&&!consoleOpen){sequence.push(e.code);sequence=sequence.slice(-code.length);if(sequence.join(',')===code.join(',')){openConsole();sequence=[]}}}
+if(e.code==='F2'&&!e.repeat&&e.target.id!=='cmd'){if(consoleOpen)closeConsole();else if(!paused)openConsole();}
+keys[e.key.toLowerCase()]=true;
+if(e.code==='Space')jumpPlayer()
+if(e.key.toLowerCase()==='e'&&!paused&&!consoleOpen)pickup();
+if(e.key.toLowerCase()==='r'&&player.hp<=0&&!paused){player.hp=200;player.armor=300;player.alive=true;player.x=player.y=0;toast('Ты вернулся в бой')}
+if(e.key==='Escape'&&consoleOpen)closeConsole();
+});
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function openConsole(){consoleOpen=true;document.exitPointerLock?.();document.getElementById('console').style.display='block';document.getElementById('cmd').focus()}
+function closeConsole(){consoleOpen=false;document.getElementById('console').style.display='none'}
+document.getElementById('close').onclick=closeConsole;
+document.getElementById('cmd').addEventListener('keydown',e=>{if(e.key==='Enter'){let c=e.target.value.trim().toLowerCase(),log=document.getElementById('log');e.target.value='';
+const fovMatch=c.match(/^rt_abrasive_fov_\(?\s*(\d{1,5})\s*\)?$/);
+if(fovMatch){
+ const requested=Number(fovMatch[1]);
+ if(requested>=1&&requested<=50000){
+  fovInput.value=String(Math.max(60,Math.min(160,requested)));fov=requested*Math.PI/180;
+  document.getElementById('fovval').textContent=requested+'°';
+  document.getElementById('pauseFovRange').value=String(Math.max(60,Math.min(160,requested)));
+  document.getElementById('pauseFov').textContent=requested+'°';
+  log.textContent='FOV установлен: '+requested+'°';
+ }else{log.textContent='FOV должен быть от 1 до 50000.';}
+ return;
+}
+const stretchMatch=c.match(/^_?xn_weapons_hands_outstretch_\s*\(?\s*(\d{1,4})\s*\)?$/);
+if(stretchMatch){
+ const requested=Number(stretchMatch[1]);
+ if(requested>=10&&requested<=1000){
+  weaponHandsOutstretch=requested;
+  log.textContent='Растяжение рук/оружия установлено: '+requested+'% (100 = обычно).';
+ }else{log.textContent='Значение должно быть от 10 до 1000. Пример: XN_Weapons_hands_outstretch_200';}
+ return;
+}
+if(c.replace(/\s+/g,'')==='pv_noclip_fd-ui'||c.replace(/\s+/g,'')==='pv_noclip_fd_ui'){
+ player.noclip=!player.noclip;
+ log.textContent='PV_Noclip_fd-ui: '+(player.noclip?'ON — сквозь стены, урон отключён':'OFF — обычные столкновения');
+ toast('Noclip '+(player.noclip?'ON':'OFF'));
+ return;
+}
+switch(c){
+case'god':player.inv=!player.inv;log.textContent='Неуязвимость: '+(player.inv?'ВКЛЮЧЕНА':'ВЫКЛЮЧЕНА');break;case'give all':player.ammo=999;player.hp=100;player.armor=200;log.textContent='Все ресурсы выданы.';break;case'heal':player.hp=100;log.textContent='Здоровье восстановлено.';break;case'ammo':player.ammo=999;log.textContent='Патроны пополнены.';break;case'rsgd_give_all_ammo_123720':player.ammo=999;log.textContent='Все боеприпасы пополнены.';toast('Все патроны: 999');break;
+case'bfg_give_player_dfg_5647':currentWeapon=specialWeapons.BFG;player.ammo=Math.max(player.ammo,12);log.textContent='BFG выдан игроку.';toast('BFG получен!');break;
+case'chainsaw_shield_give_player_csf_80374_dfg_':currentWeapon=specialWeapons['Shield Saw'];player.ammo=Math.max(player.ammo,20);log.textContent='Щит-пила выдан игроку.';toast('Щит-пила получена!');break;
+case'kill':enemies.forEach(e=>{if(e.alive){e.alive=false;kills++;tryDropSpecialWeapon(e)}});log.textContent='Все демоны уничтожены.';break;case'help':log.textContent='Команды: Rt_Abrasive_fov_100, XN_Weapons_hands_outstretch_100, PV_Noclip_fd-ui, god, give all, heal, ammo, kill, close';break;case'close':closeConsole();break;default:log.textContent='Неизвестная команда: '+c;}}});
+function pickup(){if(paused||consoleOpen)return;let it=items.find(i=>i.alive&&dist(i,player)<2.8);if(!it){toast('Рядом ничего нет');return}it.alive=false;
+if(it.kind==='health'){player.hp=Math.min(200,player.hp+35);toast('+ здоровье')}
+else if(it.kind==='ammo'){player.ammo+=25;toast('+ патроны')}
+else if(it.kind==='armor'){player.armor=Math.min(300,player.armor+30);toast('+ броня')}
+else if(it.kind==='weapon_bfg'){currentWeapon=specialWeapons.BFG;player.ammo=Math.max(player.ammo,12);toast('BFG подобран!')}
+else if(it.kind==='weapon_shieldsaw'){currentWeapon=specialWeapons['Shield Saw'];player.ammo=Math.max(player.ammo,20);toast('Щит-пила подобран!')} }
+function update(){
+if(!consoleOpen&&!paused&&player.hp>0){
+let speed=(keys['shift']?0.17:0.105),fx=Math.cos(player.angle),fy=Math.sin(player.angle),rx=-fy,ry=fx,dx=0,dy=0;
+if(keys['w']||keys['ц']){dx+=fx;dy+=fy}if(keys['s']||keys['ы']){dx-=fx;dy-=fy}if(keys['a']||keys['ф']){dx+=rx;dy+=ry}if(keys['d']||keys['в']){dx-=rx;dy-=ry}
+let len=Math.hypot(dx,dy)||1;dx=dx/len*speed;dy=dy/len*speed;
+let nx=player.x+dx,ny=player.y+dy;if(player.noclip||!world.some(o=>Math.abs(nx-o.x)<(o.w||1)*.65&&Math.abs(player.y-o.y)<(o.h||1)*.65))player.x=nx;if(player.noclip||!world.some(o=>Math.abs(player.x-o.x)<(o.w||1)*.65&&Math.abs(ny-o.y)<(o.h||1)*.65))player.y=ny;
+if(!player.ground){const dt=0.016;player.z+=player.vy*dt;player.vy-=18*dt;if(player.z<=0){player.z=0;player.vy=0;player.ground=true}}
+for(let e of enemies){if(!e.alive)continue;let d=dist(e,player);if(d>1.6){e.x+=(player.x-e.x)/d*.018*e.speed;e.y+=(player.y-e.y)/d*.018*e.speed}else{e.attack++;if(e.attack>45){if(!player.inv&&!player.noclip){let damage=12;if(player.armor>0){let a=Math.min(player.armor,damage*.6);player.armor-=a;damage-=a}player.hp=Math.max(0,player.hp-damage)}e.attack=0;if(player.hp===0)toast('Ты пал. Нажми R для возрождения')}}}
+}}
+document.getElementById('fullscreen').onclick=()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.()};
+document.getElementById('reset').onclick=()=>location.reload();
+// Touch controls: press-and-hold movement, swipe the right side to look.
+document.querySelectorAll('[data-hold]').forEach(btn=>{
+ const k=btn.dataset.hold;
+ const down=e=>{e.preventDefault();if(paused||consoleOpen)return;keys[k]=true};
+ const up=e=>{e.preventDefault();keys[k]=false};
+ btn.addEventListener('pointerdown',down);btn.addEventListener('pointerup',up);btn.addEventListener('pointercancel',up);btn.addEventListener('pointerleave',up);
+});
+document.querySelectorAll('[data-tap]').forEach(btn=>btn.addEventListener('pointerdown',e=>{e.preventDefault();if(paused||consoleOpen)return;const a=btn.dataset.tap;if(a==='space'){jumpPlayer()}else if(a==='e')pickup()}));
+document.getElementById('fireBtn').addEventListener('pointerdown',e=>{e.preventDefault();shoot()});
+let lookTouch=null;
+const lookzone=document.getElementById('lookzone');
+lookzone.addEventListener('pointerdown',e=>{if(paused||consoleOpen)return;lookTouch={id:e.pointerId,x:e.clientX};lookzone.setPointerCapture?.(e.pointerId)});
+lookzone.addEventListener('pointermove',e=>{if(lookTouch&&lookTouch.id===e.pointerId&&!paused){player.angle+=(e.clientX-lookTouch.x)*.009;lookTouch.x=e.clientX}});
+lookzone.addEventListener('pointerup',()=>lookTouch=null);lookzone.addEventListener('pointercancel',()=>lookTouch=null);
+
+const newGameBtn=document.getElementById('newGameBtn');
+if(newGameBtn){
+ newGameBtn.addEventListener('click',()=>{
+   player.x=0;player.y=0;player.z=0;player.vy=0;player.ground=true;player.angle=0;
+   player.hp=200;player.armor=300;player.ammo=60;player.alive=true;player.inv=false;player.noclip=false;
+   kills=0;enemies.forEach((e,i)=>{e.x=rand(-30,30);e.y=rand(-30,30);e.hp=100;e.alive=true;e.attack=0;});
+   currentWeapon=weaponChoices[Math.floor(Math.random()*weaponChoices.length)];
+   closeSettings();toast('Новая игра! Оружие: '+currentWeapon.name);updateHud();
+ });
+}
+
+setInterval(update,16);draw();
+})();
+
+</script></body></html>
